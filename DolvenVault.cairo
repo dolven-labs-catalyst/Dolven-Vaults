@@ -508,8 +508,9 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (local new_userRewardDebt : Uint256, _) = SafeUint256.div_rem(
         _userRewardDebt, wei_as_uint256
     )
-    let __allRewardDebt = SafeUint256.add(new_rewardDebt, new_userRewardDebt)
-    allRewardDebt.write(_allRewardDebt)
+    let __allRewardDebt : Uint256 = SafeUint256.add(new_rewardDebt, new_userRewardDebt)
+    allRewardDebt.write(__allRewardDebt)
+
     let new_user_data = UserInfo(
         amount=user_new_amount,
         rewardDebt=new_userRewardDebt,
@@ -764,8 +765,8 @@ func processInternalStakeData{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
         _userRewardDebt, wei_as_uint256
     )
 
-    let __allRewardDebt = SafeUint256.add(new_rewardDebt, new_userRewardDebt)
-    allRewardDebt.write(_allRewardDebt)
+    let __allRewardDebt : Uint256 = SafeUint256.add(new_rewardDebt, new_userRewardDebt)
+    allRewardDebt.write(__allRewardDebt)
 
     let tvl : Uint256 = allStakedAmount.read()
     let new_tvl : Uint256 = SafeUint256.sub_le(tvl, amountToWithdraw)
