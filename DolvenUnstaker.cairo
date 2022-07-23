@@ -19,16 +19,12 @@ from starkware.cairo.common.math import (
 )
 from starkware.cairo.common.uint256 import (
     Uint256,
-    uint256_add,
-    uint256_sub,
     uint256_le,
     uint256_lt,
     uint256_check,
     uint256_eq,
-    uint256_mul,
-    uint256_unsigned_div_rem,
 )
-
+from openzeppelin.security.safemath import SafeUint256
 from starkware.cairo.common.math_cmp import is_le, is_not_zero, is_nn, is_in_range
 from openzeppelin.token.ERC20.interfaces.IERC20 import IERC20
 from openzeppelin.access.ownable import Ownable
@@ -77,6 +73,10 @@ func user_nonces(account_address : felt, index : felt) -> (userNonce : felt):
 end
 
 @storage_var
+func totalLockedValue() -> (tvl : Uint256):
+end
+
+@storage_var
 func user_nonces_len_(account_address : felt) -> (length : felt):
 end
 
@@ -101,10 +101,9 @@ end
 
 @constructor
 func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    token_address_ : felt, staking_contract_address_ : felt
+    token_address_ : felt, staking_contract_address_ : felt, _admin : felt
 ):
-    let (caller_address) = get_caller_address()
-    Ownable.initializer(caller_address)
+    Ownable.initializer(_admin)
     token_address.write(token_address_)
     staking_contract_address.write(staking_contract_address_)
     return ()
@@ -181,17 +180,18 @@ func get_user_locks{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_chec
 end
 
 func recursive_user_locks{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    user : felt, nonce_index : felt
+    user : felt, index : felt
 ) -> (locks_len : felt, locks_memoryloc : Lock*):
     alloc_locals
-    let (nonce_id) = user_nonces.read(user, nonce_index)
-    if nonce_id == 0:
+    let user_length : felt = user_nonces_len_.read(user)
+    let (nonce_id) = user_nonces.read(user, index)
+    if user_length == index:
         let (found_locks : Lock*) = alloc()
         return (0, found_locks)
     end
 
     let lock_details : Lock = locks.read(nonce_id)
-    let (locks_len, locks_memoryloc) = recursive_user_locks(user, nonce_index + 1)
+    let (locks_len, locks_memoryloc) = recursive_user_locks(user, index + 1)
     assert [locks_memoryloc] = lock_details
     return (locks_len + 1, locks_memoryloc + Lock.SIZE)
 end
@@ -202,7 +202,7 @@ end
 func setTokenAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     token_address_ : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     token_address.write(token_address_)
     return ()
 end
@@ -211,7 +211,7 @@ end
 func setStakingAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     contract_address_ : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     staking_contract_address.write(contract_address_)
     return ()
 end
@@ -220,7 +220,7 @@ end
 func setLockTypes{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     id : felt, duration : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     lockTypes.write(id, duration)
     return ()
 end
@@ -229,7 +229,7 @@ end
 func setDayDuration{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     duration_as_second : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     one_day.write(duration_as_second)
     return ()
 end
@@ -260,7 +260,7 @@ func lockTokens{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
 
     let unlockTime : felt = lock_duration + time
     let new_lock : Lock = Lock(
-        user_account=msg_sender,
+        user_account=user_address,
         lock_timestamp=time,
         lock_type=lockType_,
         unlock_timestamp=unlockTime,
@@ -268,12 +268,15 @@ func lockTokens{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
         amount=_amount,
         isUnlocked=FALSE,
     )
-    let user_nonce_length : felt = user_nonces_len_.read(msg_sender)
-    user_nonces.write(msg_sender, user_nonce_length, nonce + 1)
+    let old_tvl : Uint256 = totalLockedValue.read()
+    let new_tvl : Uint256 = SafeUint256.add(old_tvl, _amount)
+    let user_nonce_length : felt = user_nonces_len_.read(user_address)
+    user_nonces.write(user_address, user_nonce_length, nonce + 1)
+    totalLockedValue.write(new_tvl)
     locks.write(nonce + 1, new_lock)
     nonceCount.write(nonce + 1)
-    user_nonces_len_.write(msg_sender, user_nonce_length + 1)
-    Locked.emit(msg_sender, _amount, time, nonce + 1)
+    user_nonces_len_.write(user_address, user_nonce_length + 1)
+    Locked.emit(user_address, _amount, time, nonce + 1)
     ReentrancyGuard._end()
     return ()
 end
@@ -314,12 +317,16 @@ func cancelLock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     let new_lock_details : Lock = Lock(
         user_account=caller,
         lock_timestamp=0,
-        lock_type=lock_details.lock_type,
+        lock_type=0,
         unlock_timestamp=0,
         unlocked_timestamp=time,
-        amount=lock_details.amount,
+        amount=Uint256(0, 0),
         isUnlocked=TRUE,
     )
+    let old_tvl : Uint256 = totalLockedValue.read()
+    let new_tvl : Uint256 = SafeUint256.add(old_tvl, lock_details.amount)
+    totalLockedValue.write(new_tvl)
+
     return ()
 end
 
@@ -349,9 +356,12 @@ func unlock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         lock_type=lock_details.lock_type,
         unlock_timestamp=lock_details.unlock_timestamp,
         unlocked_timestamp=time,
-        amount=lock_details.amount,
+        amount=Uint256(0, 0),
         isUnlocked=TRUE,
     )
+    let old_tvl : Uint256 = totalLockedValue.read()
+    let new_tvl : Uint256 = SafeUint256.add(old_tvl, lock_details.amount)
+    totalLockedValue.write(new_tvl)
     Unlocked.emit(lock_details.user_account, lock_details.amount, time, _nonce)
     return ()
 end
