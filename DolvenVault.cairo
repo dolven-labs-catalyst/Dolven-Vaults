@@ -283,7 +283,7 @@ func pendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check
     alloc_locals
     let zero_as_uint256 : Uint256 = Uint256(0, 0)
     let (user : UserInfo) = userInfo.read(account_address)
-    let tempAccTokensPerShare : Uint256 = returnTokensPerShare()
+    let tempAccTokensPerShare : Uint256 = accTokensPerShare.read()
     let _lastRewardTime : felt = lastRewardTimestamp.read()
     let _allStakedAmount : Uint256 = allStakedAmount.read()
     let _rewardPerTimestamp : Uint256 = rewardPerTimestamp.read()
@@ -405,12 +405,10 @@ end
 
 @external
 func cancelLock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(nonce_ : felt):
-    ReentrancyGuard._start()
     let (caller) = get_caller_address()
     let (unstaker) = get_unstakerAddress()
 
     IDolvenUnstaker.cancelTokens(unstaker, caller, nonce_)
-    ReentrancyGuard._end()
     return ()
 end
 
@@ -932,7 +930,9 @@ func updatePool{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     let reward : Uint256 = SafeUint256.mul(multiplier, _rewardPerTime)
     let data_x : Uint256 = SafeUint256.mul(reward, wei_as_uint256)
     let (local rw_data : Uint256, _) = SafeUint256.div_rem(data_x, _allStakedAmount)
-    accTokensPerShare.write(rw_data)
+    let _accTokensPerShare : Uint256 = accTokensPerShare.read()
+    let new_accPerShare : Uint256 = SafeUint256.add(rw_data, _accTokensPerShare)
+    accTokensPerShare.write(new_accPerShare)
     lastRewardTimestamp.write(_blockTime)
 
     return ()
