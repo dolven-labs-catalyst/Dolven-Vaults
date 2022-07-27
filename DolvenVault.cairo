@@ -77,6 +77,10 @@ func accTokensPerShare() -> (amount : Uint256):
 end
 
 @storage_var
+func totalTicketCount() -> (ticketCount : Uint256):
+end
+
+@storage_var
 func stakerCount() -> (count : felt):
 end
 
@@ -286,80 +290,6 @@ func get_unstakerAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range
 ):
     let res : felt = unstakerAddress.read()
     return (res)
-end
-
-@view
-func pendingReward_view{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    account_address : felt
-) -> (
-    reward : Uint256,
-    test : Uint256,
-    test_2 : Uint256,
-    test_3 : Uint256,
-    test_4 : Uint256,
-    test_5 : Uint256,
-    test_6 : Uint256,
-):
-    alloc_locals
-    let zero_as_uint256 : Uint256 = Uint256(0, 0)
-    let (user : UserInfo) = userInfo.read(account_address)
-    let tempAccTokensPerShare : Uint256 = accTokensPerShare.read()
-    let _lastRewardTime : felt = lastRewardTimestamp.read()
-    let _allStakedAmount : Uint256 = allStakedAmount.read()
-    let _rewardPerTimestamp : Uint256 = rewardPerTimestamp.read()
-    let (time) = get_block_timestamp()
-    let res : felt = is_le(time, _lastRewardTime)
-    let res_y : felt = uint256_eq(_allStakedAmount, Uint256(0, 0))
-    let wei : felt = 10 ** 18
-    let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
-    if res == 0:
-        if res_y == 0:
-            let _multiplier : felt = get_multiplier(_lastRewardTime, time)
-            let multiplier : Uint256 = felt_to_uint256(_multiplier)
-            let reward : Uint256 = SafeUint256.mul(multiplier, _rewardPerTimestamp)
-            let wei_reward : Uint256 = SafeUint256.mul(reward, wei_as_uint256)
-            let (local dived_data : Uint256, _) = SafeUint256.div_rem(wei_reward, _allStakedAmount)
-            let tempAccTokensPerShare : Uint256 = SafeUint256.add(tempAccTokensPerShare, dived_data)
-            let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
-            let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
-
-            return (
-                returnData,
-                user.rewardDebt,
-                wei_as_uint256,
-                tempAccTokensPerShare,
-                dived_data,
-                reward,
-                multiplier,
-            )
-        end
-        let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
-        let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
-        let result : Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt)
-
-        return (
-            result,
-            _allStakedAmount,
-            tempAccTokensPerShare,
-            Uint256(0, 0),
-            Uint256(0, 0),
-            Uint256(0, 0),
-            Uint256(0, 0),
-        )
-    end
-
-    let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
-    let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
-    let result : Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt)
-    return (
-        result,
-        _allStakedAmount,
-        tempAccTokensPerShare,
-        Uint256(1, 1),
-        Uint256(1, 1),
-        Uint256(1, 1),
-        Uint256(1, 1),
-    )
 end
 
 @view
@@ -617,6 +547,9 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         dlTicket=resTicketCount,
         isRegistered=1,
     )
+    let oldTotalTicketCount : Uint256 = totalTicketCount.read()
+    let newTotalTicketCount : Uint256 = SafeUint256.add(oldTotalTicketCount, resTicketCount)
+    totalTicketCount.write(newTotalTicketCount)
 
     userInfo.write(staker, new_user_data)
     TokensStaked.emit(
@@ -663,6 +596,7 @@ func unDelegate{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
                 user_new_ticket,
                 new_user_amount,
                 user.lockType,
+                user.dlTicket,
             )
             ReentrancyGuard._end()
 
@@ -678,6 +612,7 @@ func unDelegate{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
             user_new_ticket,
             new_user_amount,
             user.lockType,
+            user.dlTicket,
         )
         ReentrancyGuard._end()
 
@@ -692,6 +627,7 @@ func unDelegate{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
         user_new_ticket,
         new_user_amount,
         user.lockType,
+        user.dlTicket,
     )
 
     ReentrancyGuard._end()
@@ -849,6 +785,7 @@ func processInternalStakeData{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
     user_ticket_count : Uint256,
     new_amount : Uint256,
     _lockType : felt,
+    user_old_ticket_count : Uint256,
 ):
     alloc_locals
     let (caller) = get_caller_address()
@@ -879,6 +816,10 @@ func processInternalStakeData{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
         dlTicket=user_ticket_count,
         isRegistered=1,
     )
+    let diff : Uint256 = SafeUint256.sub_le(user_old_ticket_count, user_ticket_count)
+    let oldTotalTicketCount : Uint256 = totalTicketCount.read()
+    let newTotalTicketCount : Uint256 = SafeUint256.sub_le(oldTotalTicketCount, diff)
+    totalTicketCount.write(newTotalTicketCount)
 
     userInfo.write(caller, new_user_data)
 
@@ -1046,25 +987,6 @@ end
 func uint256_to_felt{range_check_ptr}(value : Uint256) -> (value : felt):
     assert_lt_felt(value.high, 2 ** 123)
     return (value.high * (2 ** 128) + value.low)
-end
-
-@view
-func transferPendingReward_view{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    _user : UserInfo
-) -> (res : Uint256, res_2 : Uint256, res_3 : Uint256, res_4 : Uint256):
-    alloc_locals
-    let is_amount_less_than_zero : felt = uint256_le(_user.amount, Uint256(0, 0))
-    if is_amount_less_than_zero == 0:
-        let wei : felt = 10 ** 18
-        let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
-        let _accTokensPerShare : Uint256 = accTokensPerShare.read()
-
-        let __pending : Uint256 = SafeUint256.mul(_user.amount, _accTokensPerShare)
-        let (local _pending : Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256)
-
-        return (_pending, _user.rewardDebt, _accTokensPerShare, _user.amount)
-    end
-    return (Uint256(0, 0), Uint256(0, 0), Uint256(0, 0), Uint256(0, 0))
 end
 
 func transferPendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
