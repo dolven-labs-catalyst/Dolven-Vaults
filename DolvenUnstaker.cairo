@@ -183,9 +183,8 @@ func recursive_user_locks{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, rang
     user : felt, index : felt
 ) -> (locks_len : felt, locks_memoryloc : Lock*):
     alloc_locals
-    let user_length : felt = user_nonces_len_.read(user)
-    let (nonce_id) = user_nonces.read(user, index)
-    if user_length == index:
+    let nonce_id : felt = user_nonces.read(user, index)
+    if nonce_id == 0:
         let (found_locks : Lock*) = alloc()
         return (0, found_locks)
     end
@@ -312,10 +311,16 @@ func cancelLock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     with_attr error_message("unlock::already unlocked"):
         assert is_lock_unlocked = FALSE
     end
+    let staking_token : felt = token_address.read()
     let stake_contract : felt = staking_contract_address.read()
-    IDolvenVault.delege(stake_contract, lock_details.amount, caller, lock_details.lock_type)
+    IERC20.approve(staking_token, stake_contract, lock_details.amount)
+    let user_current_lock : felt = IDolvenVault.get_userLockType(stake_contract, user_address)
+    let lockTypeNonce : felt = lock_details.lock_type
+    let __lockType : felt = returnLockDetails(lockTypeNonce, user_current_lock)
+
+    IDolvenVault.delege(stake_contract, lock_details.amount, user_address, __lockType)
     let new_lock_details : Lock = Lock(
-        user_account=caller,
+        user_account=user_address,
         lock_timestamp=0,
         lock_type=0,
         unlock_timestamp=0,
@@ -328,6 +333,18 @@ func cancelLock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     totalLockedValue.write(new_tvl)
 
     return ()
+end
+
+func returnLockDetails{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    nonce_lock : felt, current_lock : felt
+) -> (res : felt):
+    let is_lock_less_than_current : felt = is_le(nonce_lock, current_lock)
+    let __lock_type : felt = 0
+    if is_lock_less_than_current == 1:
+        return (current_lock)
+    else:
+        return (nonce_lock)
+    end
 end
 
 func unlock{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
