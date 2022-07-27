@@ -13,6 +13,9 @@ from starkware.cairo.common.math import (
     assert_not_zero,
     assert_not_equal,
     assert_nn_le,
+    split_felt,
+    assert_lt_felt,
+    assert_le_felt,
     assert_le,
     unsigned_div_rem,
     signed_div_rem,
@@ -231,6 +234,15 @@ func get_rewardPerTm{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 end
 
 @view
+func get_userLockType{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    account : felt
+) -> (res : felt):
+    let rpt : UserInfo = userInfo.read(account)
+    let lockType : felt = rpt.lockType
+    return (lockType)
+end
+
+@view
 func get_isFarming{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
     res : felt
 ):
@@ -277,6 +289,80 @@ func get_unstakerAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range
 end
 
 @view
+func pendingReward_view{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    account_address : felt
+) -> (
+    reward : Uint256,
+    test : Uint256,
+    test_2 : Uint256,
+    test_3 : Uint256,
+    test_4 : Uint256,
+    test_5 : Uint256,
+    test_6 : Uint256,
+):
+    alloc_locals
+    let zero_as_uint256 : Uint256 = Uint256(0, 0)
+    let (user : UserInfo) = userInfo.read(account_address)
+    let tempAccTokensPerShare : Uint256 = accTokensPerShare.read()
+    let _lastRewardTime : felt = lastRewardTimestamp.read()
+    let _allStakedAmount : Uint256 = allStakedAmount.read()
+    let _rewardPerTimestamp : Uint256 = rewardPerTimestamp.read()
+    let (time) = get_block_timestamp()
+    let res : felt = is_le(time, _lastRewardTime)
+    let res_y : felt = uint256_eq(_allStakedAmount, Uint256(0, 0))
+    let wei : felt = 10 ** 18
+    let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
+    if res == 0:
+        if res_y == 0:
+            let _multiplier : felt = get_multiplier(_lastRewardTime, time)
+            let multiplier : Uint256 = felt_to_uint256(_multiplier)
+            let reward : Uint256 = SafeUint256.mul(multiplier, _rewardPerTimestamp)
+            let wei_reward : Uint256 = SafeUint256.mul(reward, wei_as_uint256)
+            let (local dived_data : Uint256, _) = SafeUint256.div_rem(wei_reward, _allStakedAmount)
+            let tempAccTokensPerShare : Uint256 = SafeUint256.add(tempAccTokensPerShare, dived_data)
+            let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
+            let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
+
+            return (
+                returnData,
+                user.rewardDebt,
+                wei_as_uint256,
+                tempAccTokensPerShare,
+                dived_data,
+                reward,
+                multiplier,
+            )
+        end
+        let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
+        let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
+        let result : Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt)
+
+        return (
+            result,
+            _allStakedAmount,
+            tempAccTokensPerShare,
+            Uint256(0, 0),
+            Uint256(0, 0),
+            Uint256(0, 0),
+            Uint256(0, 0),
+        )
+    end
+
+    let _returnData : Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare)
+    let (local returnData : Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256)
+    let result : Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt)
+    return (
+        result,
+        _allStakedAmount,
+        tempAccTokensPerShare,
+        Uint256(1, 1),
+        Uint256(1, 1),
+        Uint256(1, 1),
+        Uint256(1, 1),
+    )
+end
+
+@view
 func pendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     account_address : felt
 ) -> (reward : Uint256):
@@ -291,11 +377,11 @@ func pendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check
     let res : felt = is_le(time, _lastRewardTime)
     let res_y : felt = uint256_eq(_allStakedAmount, Uint256(0, 0))
     let wei : felt = 10 ** 18
-    let wei_as_uint256 : Uint256 = Uint256(wei, 0)
+    let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
     if res == 0:
         if res_y == 0:
             let _multiplier : felt = get_multiplier(_lastRewardTime, time)
-            let multiplier : Uint256 = Uint256(_multiplier, 0)
+            let multiplier : Uint256 = felt_to_uint256(_multiplier)
             let reward : Uint256 = SafeUint256.mul(multiplier, _rewardPerTimestamp)
             let wei_reward : Uint256 = SafeUint256.mul(reward, wei_as_uint256)
             let (local dived_data : Uint256, _) = SafeUint256.div_rem(wei_reward, _allStakedAmount)
@@ -462,8 +548,8 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (_stakingToken) = stakingToken.read()
     let (this) = get_contract_address()
     let _tvl : Uint256 = allStakedAmount.read()
-    let user_new_amount = user.amount
-    let ticketValue = user.dlTicket
+    let user_new_amount : Uint256 = user.amount
+    let ticketValue : Uint256 = user.dlTicket
     let time : felt = get_block_timestamp()
 
     let is_amount_more_zero : felt = uint256_lt(Uint256(0, 0), user.amount)
@@ -475,10 +561,24 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     end
 
     let pending : Uint256 = transferPendingReward(user)
-    let (txs_success : felt) = IERC20.transferFrom(_stakingToken, staker, this, _amountToStake)
 
-    with_attr error_message("DolvenVault::delegate Delegation payment failed"):
-        assert txs_success = TRUE
+    let (caller_) = get_caller_address()
+    let unstakerAddress_ : felt = unstakerAddress.read()
+
+    if caller_ == unstakerAddress_:
+        let (txs_success : felt) = IERC20.transferFrom(
+            _stakingToken, unstakerAddress_, this, _amountToStake
+        )
+
+        with_attr error_message("DolvenVault::delegate Delegation payment failed"):
+            assert txs_success = TRUE
+        end
+    else:
+        let (txs_success : felt) = IERC20.transferFrom(_stakingToken, staker, this, _amountToStake)
+
+        with_attr error_message("DolvenVault::delegate Delegation payment failed"):
+            assert txs_success = TRUE
+        end
     end
 
     let user_new_amount : Uint256 = SafeUint256.add(_amountToStake, user.amount)
@@ -865,17 +965,17 @@ end
 func detectAddresss{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     address : felt
 ) -> (res : felt):
-    let is_address_zero : felt = is_not_zero(address)
+    let is_address_not_zero : felt = is_not_zero(address)
     let staker : felt = 0
     let (caller) = get_caller_address()
     assert_not_zero(caller)
 
-    if is_address_zero == 0:
+    if is_address_not_zero == 0:
         let staker : felt = caller
         return (staker)
     end
 
-    if is_address_zero == 1:
+    if is_address_not_zero == 1:
         let staker : felt = address
         return (staker)
     end
@@ -924,9 +1024,9 @@ func updatePool{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     end
 
     let wei : felt = 10 ** 18
-    let wei_as_uint256 : Uint256 = Uint256(wei, 0)
+    let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
     let _multiplier : felt = get_multiplier(_lastRewardTime, _blockTime)
-    let multiplier : Uint256 = Uint256(_multiplier, 0)
+    let multiplier : Uint256 = felt_to_uint256(_multiplier)
     let reward : Uint256 = SafeUint256.mul(multiplier, _rewardPerTime)
     let data_x : Uint256 = SafeUint256.mul(reward, wei_as_uint256)
     let (local rw_data : Uint256, _) = SafeUint256.div_rem(data_x, _allStakedAmount)
@@ -938,6 +1038,35 @@ func updatePool{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
     return ()
 end
 
+func felt_to_uint256{range_check_ptr}(x) -> (uint_x : Uint256):
+    let (high, low) = split_felt(x)
+    return (Uint256(low=low, high=high))
+end
+
+func uint256_to_felt{range_check_ptr}(value : Uint256) -> (value : felt):
+    assert_lt_felt(value.high, 2 ** 123)
+    return (value.high * (2 ** 128) + value.low)
+end
+
+@view
+func transferPendingReward_view{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    _user : UserInfo
+) -> (res : Uint256, res_2 : Uint256, res_3 : Uint256, res_4 : Uint256):
+    alloc_locals
+    let is_amount_less_than_zero : felt = uint256_le(_user.amount, Uint256(0, 0))
+    if is_amount_less_than_zero == 0:
+        let wei : felt = 10 ** 18
+        let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
+        let _accTokensPerShare : Uint256 = accTokensPerShare.read()
+
+        let __pending : Uint256 = SafeUint256.mul(_user.amount, _accTokensPerShare)
+        let (local _pending : Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256)
+
+        return (_pending, _user.rewardDebt, _accTokensPerShare, _user.amount)
+    end
+    return (Uint256(0, 0), Uint256(0, 0), Uint256(0, 0), Uint256(0, 0))
+end
+
 func transferPendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     _user : UserInfo
 ) -> (res : Uint256):
@@ -945,12 +1074,14 @@ func transferPendingReward{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, ran
     let is_amount_less_than_zero : felt = uint256_le(_user.amount, Uint256(0, 0))
     if is_amount_less_than_zero == 0:
         let wei : felt = 10 ** 18
-        let wei_as_uint256 : Uint256 = Uint256(wei, 0)
+        let wei_as_uint256 : Uint256 = felt_to_uint256(wei)
         let _accTokensPerShare : Uint256 = accTokensPerShare.read()
+
         let __pending : Uint256 = SafeUint256.mul(_user.amount, _accTokensPerShare)
         let (local _pending : Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256)
         let pending : Uint256 = SafeUint256.sub_le(_pending, _user.rewardDebt)
-        let res_condition : felt = uint256_lt(Uint256(1, 0), pending)
+
+        let res_condition : felt = uint256_lt(Uint256(0, 0), pending)
         let _rewardToken : felt = rewardToken.read()
         let (caller) = get_caller_address()
         let _allPaidReward : Uint256 = allPaidReward.read()
