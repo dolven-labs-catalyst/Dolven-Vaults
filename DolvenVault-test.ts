@@ -6,7 +6,6 @@ import {
   StarknetContract,
   StarknetContractFactory,
 } from "hardhat/types/runtime";
-import { doesNotMatch } from "assert";
 
 function returnToHex(intValue: string) {
   return "0x0" + BigInt(intValue).toString(16);
@@ -27,6 +26,7 @@ describe("Starknet", function () {
   let account: any;
   let test_account: any;
   let airdrop_account: any;
+
   it("deploy accounts", async function () {
     account = await starknet.deployAccount("OpenZeppelin");
     test_account = await starknet.deployAccount("OpenZeppelin");
@@ -70,7 +70,7 @@ describe("Starknet", function () {
       _finishTimestamp: BigInt(time_end),
       _poolTokenAmount: pool_token_amount,
       _limitForTicket: limit_for_ticket,
-      _isFarming: 1n,
+      _isFarming: 1,
       _admin: returnToInt(account.starknetContract._address),
     };
 
@@ -96,37 +96,37 @@ describe("Starknet", function () {
     console.log("DolvenUnstaker Contract Deployed at", dolvenUnstaker.address);
   });
 
+  /*
   this.beforeEach(async () => {
     //Deployments
     dolvenVault_factory = await starknet.getContractFactory("DolvenVault");
     contractFactory_unstaker = await starknet.getContractFactory("Unstaker");
     contractFactory_token = await starknet.getContractFactory("Dolven-token");
     account = await starknet.getAccountFromAddress(
-      "0x03efb5293a016dd276e78f2387999bc3fd5a520329b05f2308b8b72742c33ea3",
-      "0x19c8566689a08be5024238806b599cf31c1975bd73944c5e2d3c81fbea2116d",
+      "0x072182cfcbe7e20a7569808bda8251070d076933ace7e885f3090f176bf2ba39",
+      "0x3db458ee9ba9bc6414a607aa16a67cb38ceb2148a6a603e7627382d654723eb",
       "OpenZeppelin"
     );
 
     test_account = await starknet.getAccountFromAddress(
-      "0x03afd1eafa31bb6dd3141cef35c6a15c9a09587b0b4e3826ff88801395253017",
-      "0x7e12c33cc1a396292d6b0392462c61cb0147634e64343d323a3024ff9ca2e1b",
+      "0x00e69842e19d54f1a20b0202a939f47d5394110b9f90f08f047461550bb055b7",
+      "0xd74c01b60635bc712d26ecf5fef498cdf19c38eea8efd5cdf39fc8fb9149d01",
       "OpenZeppelin"
     );
 
     dolvenVault = dolvenVault_factory.getContractAt(
-      "0x05087f1e083a215fc7b69b1498476ca32835c8c0da3b83ea32ec3048ccd2f575"
+      "0x02153f142fe36b6ba909dfc7d384f6a664fc77bda1c4c193037ffe3d5b2708fc"
     );
     dolvenUnstaker = contractFactory_unstaker.getContractAt(
-      "0x0565e62b18d4efb63e669c34a86428169d4cb25c40554919ece4110898446982"
+      "0x03941d7982571ca16c90f980aaa5b55d6a4343bb1032d80c2125bd135bcf9423"
     );
     staking_token = contractFactory_token.getContractAt(
-      "0x06d6a9116abe1137f14109c80933ae817ad39525b1323d004122771d8fcb690a"
+      "0x01b57bc561f13e1b5bb278bcfe6207477ee4f3c353a98d19cca9f981085f7387"
     );
     pool_token = contractFactory_token.getContractAt(
-      "0x01997c06359c25e6dfe263bceea8308d2eb06d98c668fab422ec5915f5a5f9d1"
+      "0x00676392d5fe90153ea937650cd7539e79518b3041364d17a49f9fe4d021e0ff"
     );
   });
-
 
   it("token amount should be greater than zero", async function () {
     const { balance } = await account.call(staking_token, "balanceOf", {
@@ -182,6 +182,7 @@ describe("Starknet", function () {
     });
     expect(remaining.low).to.deep.equal(BigInt(1003000000000000000000));
   });
+
   it("be delegator", async function () {
     await account.invoke(dolvenVault, "delege", {
       _amountToStake: { low: BigInt(1003000000000000000000), high: 0 },
@@ -282,10 +283,14 @@ describe("Starknet", function () {
 
   it("check pending reward", async function () {
     const res = await test_account.call(dolvenVault, "pendingReward", {
-      account_address: BigInt(account.starknetContract._address),
+      account_address: BigInt(test_account.starknetContract._address),
+    });
+    const res_ = await test_account.call(dolvenVault, "pendingReward_view", {
+      account_address: BigInt(test_account.starknetContract._address),
     });
     const as_uint = Number(ethers.utils.formatEther(res.reward.low.toString()));
-
+    console.log(res, "pending reward");
+    console.log(res_, "pending reward _ view");
     expect(as_uint).to.be.above(0);
   });
 
@@ -330,9 +335,10 @@ describe("Starknet", function () {
     console.log(one_day, "one day");
     expect(one_day.res).to.deep.equal(BigInt(86400));
   });
+
   it("lock type 2 should equal to 40 days in unstaker contract", async function () {
-    const days_40_seconds = 1728000 * 2;
-    const days_20_seconds = 1728000;
+    const days_40_seconds = 1 * 2;
+    const days_20_seconds = 1;
     await account.invoke(dolvenUnstaker, "setLockTypes", {
       id: 1,
       duration: days_40_seconds,
@@ -346,7 +352,9 @@ describe("Starknet", function () {
     });
     expect(duration.res).to.deep.equal(BigInt(days_40_seconds));
   });
+*/
 
+  /*
   it("should unstake ", async function () {
     const userInfo = await account.call(dolvenVault, "getUserInfo", {
       account_address: account.starknetContract._address,
@@ -378,6 +386,7 @@ describe("Starknet", function () {
       BigInt(152000000000000000000)
     );
   });
+
 
   it("should approve & duration should be extended ", async function () {
     await account.invoke(pool_token, "approve", {
@@ -411,20 +420,52 @@ describe("Starknet", function () {
   it("should stake and approve again", async function () {
     await account.invoke(staking_token, "approve", {
       spender: dolvenVault.address,
-      amount: { low: BigInt(2176000000000000000000), high: 0 },
+      amount: { low: BigInt(189000000000000000000), high: 0 },
     });
+    const userInfo = await account.call(dolvenVault, "getUserInfo", {
+      account_address: account.starknetContract._address,
+    });
+    console.log(userInfo, "user info");
 
     await account.invoke(dolvenVault, "delege", {
-      _amountToStake: { low: BigInt(2176000000000000000000), high: 0 },
+      _amountToStake: { low: BigInt(189000000000000000000), high: 0 },
       _staker: account.starknetContract._address,
-      _lockType: 1n,
+      _lockType: 1,
     });
+
     const userInfo__2 = await account.call(dolvenVault, "getUserInfo", {
       account_address: account.starknetContract._address,
     });
     console.log(userInfo__2, "user info 2");
+
     expect(userInfo__2.res.amount.low).to.deep.equal(
-      userInfo__2.res.amount.low + BigInt(2176000000000000000000)
+      userInfo.res.amount.low + BigInt(189000000000000000000)
+    );
+  });
+
+  it("should stake and approve again 2", async function () {
+    await account.invoke(staking_token, "approve", {
+      spender: dolvenVault.address,
+      amount: { low: BigInt(2176000000000000000000), high: 0 },
+    });
+    const userInfo = await account.call(dolvenVault, "getUserInfo", {
+      account_address: account.starknetContract._address,
+    });
+    console.log(userInfo, "user info");
+
+    await account.invoke(dolvenVault, "delege", {
+      _amountToStake: { low: BigInt(2176000000000000000000), high: 0 },
+      _staker: account.starknetContract._address,
+      _lockType: 1,
+    });
+
+    const userInfo__2 = await account.call(dolvenVault, "getUserInfo", {
+      account_address: account.starknetContract._address,
+    });
+    console.log(userInfo__2, "user info 2");
+
+    expect(userInfo__2.res.amount.low).to.deep.equal(
+      userInfo.res.amount.low + BigInt(2176000000000000000000)
     );
   });
 
@@ -449,27 +490,8 @@ describe("Starknet", function () {
     console.log(contract_balance_after, "after balance of unstaker contract");
 
     expect(contract_balance.balance.low).to.deep.equal(
-      contract_balance_after.balance.low + BigInt(117000000000000000000)
+      contract_balance_after.balance.low - BigInt(117000000000000000000)
     );
-  });
-
-  it("user should lock value", async function () {
-    const locks_of_user = await account.call(dolvenUnstaker, "get_user_locks", {
-      user: account.starknetContract._address,
-    });
-    console.log(locks_of_user, "user locks");
-  });
-
-  it("only staking contract", async function () {
-    try {
-      await account.call(dolvenUnstaker, "cancelTokens", {
-        user_: account.starknetContract._address,
-        nonce: 2n,
-      });
-    } catch (error) {
-      expect(1).to.equal(1);
-    }
-    expect(1).to.equal(1);
   });
 
   it("should cancel lock", async function () {
@@ -488,4 +510,30 @@ describe("Starknet", function () {
     console.log("before user data", userInfo_after);
   });
 
+  it("pending reward", async function () {
+    const locks_of_user = await account.call(dolvenVault, "pendingReward", {
+      account_address: account.starknetContract._address,
+    });
+    console.log(locks_of_user, "user locks");
+  });
+
+  it("user should lock value", async function () {
+    const locks_of_user = await account.call(dolvenUnstaker, "get_user_locks", {
+      user: account.starknetContract._address,
+    });
+    console.log(locks_of_user, "user locks");
+  });
+
+  it("only staking contract", async function () {
+    try {
+      await account.invoke(dolvenUnstaker, "cancelTokens", {
+        user_: account.starknetContract._address,
+        nonce: 2n,
+      });
+    } catch (error) {
+      expect(1).to.equal(1);
+    }
+    expect(1).to.equal(1);
+  });
+  */
 });
