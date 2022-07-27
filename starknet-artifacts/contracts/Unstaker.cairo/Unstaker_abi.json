@@ -1,0 +1,363 @@
+[
+    {
+        "members": [
+            {
+                "name": "low",
+                "offset": 0,
+                "type": "felt"
+            },
+            {
+                "name": "high",
+                "offset": 1,
+                "type": "felt"
+            }
+        ],
+        "name": "Uint256",
+        "size": 2,
+        "type": "struct"
+    },
+    {
+        "members": [
+            {
+                "name": "user_account",
+                "offset": 0,
+                "type": "felt"
+            },
+            {
+                "name": "lock_timestamp",
+                "offset": 1,
+                "type": "felt"
+            },
+            {
+                "name": "lock_type",
+                "offset": 2,
+                "type": "felt"
+            },
+            {
+                "name": "unlock_timestamp",
+                "offset": 3,
+                "type": "felt"
+            },
+            {
+                "name": "unlocked_timestamp",
+                "offset": 4,
+                "type": "felt"
+            },
+            {
+                "name": "amount",
+                "offset": 5,
+                "type": "Uint256"
+            },
+            {
+                "name": "isUnlocked",
+                "offset": 7,
+                "type": "felt"
+            }
+        ],
+        "name": "Lock",
+        "size": 8,
+        "type": "struct"
+    },
+    {
+        "data": [
+            {
+                "name": "previousOwner",
+                "type": "felt"
+            },
+            {
+                "name": "newOwner",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "OwnershipTransferred",
+        "type": "event"
+    },
+    {
+        "data": [
+            {
+                "name": "account",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Paused",
+        "type": "event"
+    },
+    {
+        "data": [
+            {
+                "name": "account",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Unpaused",
+        "type": "event"
+    },
+    {
+        "data": [
+            {
+                "name": "user_account",
+                "type": "felt"
+            },
+            {
+                "name": "amount",
+                "type": "Uint256"
+            },
+            {
+                "name": "timestamp",
+                "type": "felt"
+            },
+            {
+                "name": "_nonce",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Unlocked",
+        "type": "event"
+    },
+    {
+        "data": [
+            {
+                "name": "user_account",
+                "type": "felt"
+            },
+            {
+                "name": "amount",
+                "type": "Uint256"
+            },
+            {
+                "name": "timestamp",
+                "type": "felt"
+            },
+            {
+                "name": "_nonce",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Locked",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "name": "token_address_",
+                "type": "felt"
+            },
+            {
+                "name": "staking_contract_address_",
+                "type": "felt"
+            },
+            {
+                "name": "_admin",
+                "type": "felt"
+            }
+        ],
+        "name": "constructor",
+        "outputs": [],
+        "type": "constructor"
+    },
+    {
+        "inputs": [
+            {
+                "name": "nonce_id",
+                "type": "felt"
+            }
+        ],
+        "name": "get_lock_details",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "Lock"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "get_one_day",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "nonce_count",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "get_staking_contract_address",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "get_token_address",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "index",
+                "type": "felt"
+            }
+        ],
+        "name": "get_lock_types",
+        "outputs": [
+            {
+                "name": "res",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "user",
+                "type": "felt"
+            }
+        ],
+        "name": "get_user_locks",
+        "outputs": [
+            {
+                "name": "locks_len",
+                "type": "felt"
+            },
+            {
+                "name": "locks",
+                "type": "felt*"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "token_address_",
+                "type": "felt"
+            }
+        ],
+        "name": "setTokenAddress",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "contract_address_",
+                "type": "felt"
+            }
+        ],
+        "name": "setStakingAddress",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "id",
+                "type": "felt"
+            },
+            {
+                "name": "duration",
+                "type": "felt"
+            }
+        ],
+        "name": "setLockTypes",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "duration_as_second",
+                "type": "felt"
+            }
+        ],
+        "name": "setDayDuration",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "user_address",
+                "type": "felt"
+            },
+            {
+                "name": "_amount",
+                "type": "Uint256"
+            },
+            {
+                "name": "lockType_",
+                "type": "felt"
+            }
+        ],
+        "name": "lockTokens",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "user_",
+                "type": "felt"
+            },
+            {
+                "name": "nonce",
+                "type": "felt"
+            }
+        ],
+        "name": "unlockTokens",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "user_",
+                "type": "felt"
+            },
+            {
+                "name": "nonce",
+                "type": "felt"
+            }
+        ],
+        "name": "cancelTokens",
+        "outputs": [],
+        "type": "function"
+    }
+]
