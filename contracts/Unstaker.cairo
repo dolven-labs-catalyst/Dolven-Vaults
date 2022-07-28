@@ -176,7 +176,7 @@ func get_user_locks{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_chec
     user : felt
 ) -> (locks_len : felt, locks : felt*):
     let (locks_len, locks) = recursive_user_locks(user, 0)
-    return (locks_len * Lock.SIZE, locks - locks_len)
+    return (locks_len * Lock.SIZE, locks - locks_len * Lock.SIZE)
 end
 
 func recursive_user_locks{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
@@ -201,7 +201,7 @@ end
 func setTokenAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     token_address_ : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     token_address.write(token_address_)
     return ()
 end
@@ -210,7 +210,7 @@ end
 func setStakingAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     contract_address_ : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     staking_contract_address.write(contract_address_)
     return ()
 end
@@ -219,7 +219,7 @@ end
 func setLockTypes{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     id : felt, duration : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     lockTypes.write(id, duration)
     return ()
 end
@@ -228,7 +228,7 @@ end
 func setDayDuration{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     duration_as_second : felt
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     one_day.write(duration_as_second)
     return ()
 end
