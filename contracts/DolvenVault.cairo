@@ -23,7 +23,7 @@ from starkware.cairo.common.math import (
 from starkware.cairo.common.uint256 import Uint256, uint256_eq, uint256_le, uint256_lt
 from openzeppelin.security.safemath import SafeUint256
 
-from starkware.cairo.common.math_cmp import is_le, is_not_zero, is_nn, is_in_range
+from starkware.cairo.common.math_cmp import is_le, is_not_zero, is_nn, is_nn_le, is_in_range
 from openzeppelin.token.ERC20.interfaces.IERC20 import IERC20
 from openzeppelin.access.ownable import Ownable
 from openzeppelin.security.pausable import Pausable
@@ -110,6 +110,14 @@ end
 # #Mappings
 
 @storage_var
+func totalLockedTicket_byBlocktime(time : felt) -> (ttc : Uint256):
+end
+
+@storage_var
+func ticketCountOfUser_byTime(user_account : felt, time : felt) -> (ttc : Uint256):
+end
+
+@storage_var
 func userInfo(user_address : felt) -> (info : UserInfo):
 end
 
@@ -120,10 +128,10 @@ end
 @storage_var
 func lockTypes(id : felt) -> (duration : felt):
 end
-# 0 -> 20 days lock after undelege 1x
-# 1 -> 40 days lock afer undelege 2x
-# 2 -> 80 days lock after undelege 6x
-# 3 -> 160 days lock after undelege 10x
+# 0 -> 20 days lock after undelegate 1x
+# 1 -> 40 days lock afer undelegate 2x
+# 2 -> 80 days lock after undelegate 6x
+# 3 -> 160 days lock after undelegate 10x
 
 # #Events
 
@@ -235,6 +243,37 @@ func get_rewardPerTm{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 ):
     let rpt : felt = rewardPerTimestamp.read()
     return (rpt)
+end
+
+@view
+func get_totalLockedTicket_byTime{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
+}(block_time : felt) -> (res : Uint256):
+    let total_locked_ticket : Uint256 = totalLockedTicket_byBlocktime.read(block_time)
+    return (total_locked_ticket)
+end
+
+@view
+func get_totalTicketCount{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+    res : Uint256
+):
+    let ttc : Uint256 = totalTicketCount.read()
+    return (ttc)
+end
+
+@view
+func get_userTicketCount{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    account : felt, blockTime : felt
+) -> (res : Uint256):
+    alloc_locals
+    let user : UserInfo = userInfo.read(account)
+    let is_earlier_than_given : felt = is_nn_le(user.updateTime, blockTime)
+    if is_earlier_than_given == 1:
+        return (user.dlTicket)
+    else:
+        let ticketCount : Uint256 = ticketCountOfUser_byTime.read(account, blockTime)
+        return (ticketCount)
+    end
 end
 
 @view
@@ -398,7 +437,7 @@ end
 func dropToken{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     addresses_len : felt, addresses : felt*, amounts_len : felt, amounts : Uint256*
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     ReentrancyGuard._start()
     assert addresses_len = amounts_len
     recursive_drop_token(0, addresses, amounts, addresses_len)
@@ -432,7 +471,7 @@ end
 func set_unstakerAddress{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     unstaker_address_ : felt
 ):
-    Ownable.assert_only_owner()
+    # #Ownable.assert_only_owner()
     unstakerAddress.write(unstaker_address_)
     return ()
 end
@@ -456,7 +495,7 @@ end
 func changeTicketLimit{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     _amountToStake : Uint256
 ):
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     ReentrancyGuard._start()
     limitForTicket.write(_amountToStake)
 
@@ -479,8 +518,7 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (this) = get_contract_address()
     let _tvl : Uint256 = allStakedAmount.read()
     let user_new_amount : Uint256 = user.amount
-    let ticketValue : Uint256 = user.dlTicket
-    let time : felt = get_block_timestamp()
+    let (time) = get_block_timestamp()
 
     let is_amount_more_zero : felt = uint256_lt(Uint256(0, 0), user.amount)
     let is_lock_type_less_than_current_lock_type : felt = is_le(user.lockType, _lockType)
@@ -550,7 +588,8 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let oldTotalTicketCount : Uint256 = totalTicketCount.read()
     let newTotalTicketCount : Uint256 = SafeUint256.add(oldTotalTicketCount, resTicketCount)
     totalTicketCount.write(newTotalTicketCount)
-
+    totalLockedTicket_byBlocktime.write(time, newTotalTicketCount)
+    ticketCountOfUser_byTime.write(caller_, time, resTicketCount)
     userInfo.write(staker, new_user_data)
     TokensStaked.emit(
         user_account=staker, amount=_amountToStake, reward=pending, totalStakedValue=new_tvl
@@ -637,7 +676,7 @@ end
 @external
 func withdrawFunds{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}():
     alloc_locals
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     ReentrancyGuard._start()
     let (time) = get_block_timestamp()
     let _finishTimestamp : felt = finishTimestamp.read()
@@ -682,7 +721,7 @@ func extendDuration{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_chec
     tokenAmount : Uint256
 ):
     alloc_locals
-    Ownable.assert_only_owner()
+    # Ownable.assert_only_owner()
     ReentrancyGuard._start()
     let _finishTimestamp : felt = finishTimestamp.read()
 
@@ -729,9 +768,16 @@ func recursive_drop_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, rang
     let _userInfo : UserInfo = userInfo.read(userAddress)
     let (time) = get_block_timestamp()
     if _userInfo.isRegistered == FALSE:
+        let current_staker_count : felt = stakerCount.read()
+
         let user_new_amount : Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount)
         let new_ticket_amount : Uint256 = returnTicket(user_new_amount, _userInfo.lockType)
-        let current_staker_count : felt = stakerCount.read()
+        let difference : Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket)
+        let _totalTicketCount : Uint256 = totalTicketCount.read()
+        let new_total_ticket_count : Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount)
+        ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount)
+        totalTicketCount.write(new_total_ticket_count)
+
         stakers.write(current_staker_count + 1, userAddress)
 
         let new_user : UserInfo = UserInfo(
@@ -750,6 +796,11 @@ func recursive_drop_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, rang
     else:
         let user_new_amount : Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount)
         let new_ticket_amount : Uint256 = returnTicket(user_new_amount, _userInfo.lockType)
+        let difference : Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket)
+        let _totalTicketCount : Uint256 = totalTicketCount.read()
+        let new_total_ticket_count : Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount)
+        ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount)
+        totalTicketCount.write(new_total_ticket_count)
 
         let new_user : UserInfo = UserInfo(
             amount=user_new_amount,
@@ -816,11 +867,13 @@ func processInternalStakeData{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
         dlTicket=user_ticket_count,
         isRegistered=1,
     )
+    let (time) = get_block_timestamp()
     let diff : Uint256 = SafeUint256.sub_le(user_old_ticket_count, user_ticket_count)
     let oldTotalTicketCount : Uint256 = totalTicketCount.read()
     let newTotalTicketCount : Uint256 = SafeUint256.sub_le(oldTotalTicketCount, diff)
+    ticketCountOfUser_byTime.write(caller, time, user_ticket_count)
     totalTicketCount.write(newTotalTicketCount)
-
+    totalLockedTicket_byBlocktime.write(time, newTotalTicketCount)
     userInfo.write(caller, new_user_data)
 
     StakeWithdrawn.emit(
