@@ -20,7 +20,7 @@ These strategy contracts are the vaults of Dolven Labs. More technical details w
 
 ## To Do List
 
-- [x] All Good
+- [x] none
 
 # Basic Sample Hardhat Project - with Starknet Plugin
 
