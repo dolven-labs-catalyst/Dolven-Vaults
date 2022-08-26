@@ -393,7 +393,7 @@ func recursiveGetInvestors{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, ran
     let (users_count) = get_staker_count()
     let (userAddress) = stakers.read(user_index)
     let (_userInfo : UserInfo) = userInfo.read(userAddress)
-    if user_index == users_count:
+    if user_index == users_count + 1:
         let (found_investors : UserInfo*) = alloc()
         let (user_addresses : felt*) = alloc()
         return (0, found_investors, 0, user_addresses)
@@ -550,6 +550,7 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     end
 
     let user_new_amount : Uint256 = SafeUint256.add(_amountToStake, user.amount)
+    let user_old_ticket_count : Uint256 = user.dlTicket
     with_attr error_message("DolvenVault::delegate Delegation payment failed"):
         assert txs_success = TRUE
     end
@@ -586,9 +587,11 @@ func delege{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         isRegistered=1,
     )
     let oldTotalTicketCount : Uint256 = totalTicketCount.read()
-    let newTotalTicketCount : Uint256 = SafeUint256.add(oldTotalTicketCount, resTicketCount)
+    let difference : Uint256 = SafeUint256.sub_le(resTicketCount, user_old_ticket_count)
+    let newTotalTicketCount : Uint256 = SafeUint256.add(oldTotalTicketCount, difference)
+
     totalTicketCount.write(newTotalTicketCount)
-    totalLockedTicket_byBlocktime.write(time, newTotalTicketCount)
+    totalLockedTicket_byBlocktime.write(time, resTicketCount)
     ticketCountOfUser_byTime.write(caller_, time, resTicketCount)
     userInfo.write(staker, new_user_data)
     TokensStaked.emit(
