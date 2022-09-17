@@ -196,7 +196,7 @@ func recursive_user_locks{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_
 func setTokenAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     token_address_: felt
 ) {
-    Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     token_address.write(token_address_);
     return ();
 }
@@ -205,7 +205,7 @@ func setTokenAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check
 func setStakingAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     contract_address_: felt
 ) {
-    Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     staking_contract_address.write(contract_address_);
     return ();
 }
@@ -214,7 +214,7 @@ func setStakingAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 func setLockTypes{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     id: felt, duration: felt
 ) {
-    Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     lockTypes.write(id, duration);
     return ();
 }
@@ -223,7 +223,7 @@ func setLockTypes{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
 func setDayDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     duration_as_second: felt
 ) {
-    Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     one_day.write(duration_as_second);
     return ();
 }
