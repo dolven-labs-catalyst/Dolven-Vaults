@@ -355,29 +355,29 @@ func pendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_p
             let tempAccTokensPerShare: Uint256 = SafeUint256.add(tempAccTokensPerShare, dived_data);
             let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
             let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
-            let result: Uint256 = SafeUint256.sub_lt(returnData, user.rewardDebt);
+            let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
             return (result,);
         }
         let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
         let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
-        let result: Uint256 = SafeUint256.sub_lt(returnData, user.rewardDebt);
+        let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
 
         return (result,);
     }
 
     let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
     let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
-    let result: Uint256 = SafeUint256.sub_lt(returnData, user.rewardDebt);
+    let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
     return (result,);
 }
 
 @view
 func getInvestors{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
-    res_len: felt, res: UserInfo*, res_addresses_len: felt, res_addresses: felt*
+    res_len: felt, res: felt*, res_addresses_len: felt, res_addresses: felt*
 ) {
     let (users_len, users, user_addresses_len, user_addresses) = recursiveGetInvestors(0);
     return (
-        users_len,
+        users_len * UserInfo.SIZE,
         users - users_len * UserInfo.SIZE,
         user_addresses_len,
         user_addresses - user_addresses_len,
@@ -435,7 +435,7 @@ func setLockDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check
 func dropToken{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     addresses_len: felt, addresses: felt*, amounts_len: felt, amounts: Uint256*
 ) {
-    // Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     ReentrancyGuard._start();
     assert addresses_len = amounts_len;
     recursive_drop_token(0, addresses, amounts, addresses_len);
@@ -469,7 +469,7 @@ func cancelLock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
 func set_unstakerAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     unstaker_address_: felt
 ) {
-    // #Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     unstakerAddress.write(unstaker_address_);
     return ();
 }
@@ -493,7 +493,7 @@ func changePause{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 func changeTicketLimit{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     _amountToStake: Uint256
 ) {
-    // Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     ReentrancyGuard._start();
     limitForTicket.write(_amountToStake);
 
@@ -553,7 +553,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         assert txs_success = TRUE;
     }
 
-    let resTicketCount: Uint256 = returnTicket(user_new_amount, _lockType);
+    let resTicketCount : Uint256 = returnTicket(user_new_amount, _lockType);
 
     let new_tvl: Uint256 = SafeUint256.add(_tvl, _amountToStake);
     allStakedAmount.write(new_tvl);
@@ -564,7 +564,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     }
 
     let _allRewardDebt: Uint256 = allRewardDebt.read();
-    let new_rewardDebt: Uint256 = SafeUint256.sub_lt(_allRewardDebt, user.rewardDebt);
+    let new_rewardDebt: Uint256 = SafeUint256.sub_le(_allRewardDebt, user.rewardDebt);
 
     let wei: felt = 10 ** 18;
     let wei_as_uint256: Uint256 = Uint256(wei, 0);
@@ -573,7 +573,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     let (local new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
         _userRewardDebt, wei_as_uint256
     );
-    let __allRewardDebt: Uint256 = SafeUint256.add(new_rewardDebt, new_userRewardDebt);
+    let __allRewardDebt : Uint256 = SafeUint256.add(new_rewardDebt, new_userRewardDebt);
     allRewardDebt.write(__allRewardDebt);
 
     let new_user_data = UserInfo(
@@ -585,7 +585,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         isRegistered=1,
     );
     let oldTotalTicketCount: Uint256 = totalTicketCount.read();
-    let difference: Uint256 = SafeUint256.sub_lt(resTicketCount, user_old_ticket_count);
+    let difference: Uint256 = SafeUint256.sub_le(resTicketCount, user_old_ticket_count);
     let newTotalTicketCount: Uint256 = SafeUint256.add(oldTotalTicketCount, difference);
 
     totalTicketCount.write(newTotalTicketCount);
@@ -617,7 +617,7 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let is_amount_less_than_zero: felt = uint256_le(amountToWithdraw, Uint256(0, 0));
     let user_new_ticket: Uint256 = user.dlTicket;
     let current_participant_count: felt = stakerCount.read();
-    let new_user_amount: Uint256 = SafeUint256.sub_lt(user.amount, amountToWithdraw);
+    let new_user_amount: Uint256 = SafeUint256.sub_le(user.amount, amountToWithdraw);
     if (is_amount_less_than_zero == 0) {
         let zero_as_uint256: Uint256 = Uint256(0, 0);
         let is_same: felt = uint256_eq(new_user_amount, zero_as_uint256);
@@ -677,7 +677,7 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
 @external
 func withdrawFunds{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() {
     alloc_locals;
-    // Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     ReentrancyGuard._start();
     let (time) = get_block_timestamp();
     let _finishTimestamp: felt = finishTimestamp.read();
@@ -695,12 +695,12 @@ func withdrawFunds{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_p
     let (local allStakedAmount_: Uint256, _) = SafeUint256.div_rem(
         _allStakedAmount, wei_as_uint256
     );
-    let pending: Uint256 = SafeUint256.sub_lt(allStakedAmount_, _allRewardDebt);
+    let pending: Uint256 = SafeUint256.sub_le(allStakedAmount_, _allRewardDebt);
 
     let _poolTokenAmount: Uint256 = poolTokenAmount.read();
     let _allPaidReward: Uint256 = allPaidReward.read();
-    let _returnAmount: Uint256 = SafeUint256.sub_lt(_poolTokenAmount, _allPaidReward);
-    let returnAmount: Uint256 = SafeUint256.sub_lt(_returnAmount, pending);
+    let _returnAmount: Uint256 = SafeUint256.sub_le(_poolTokenAmount, _allPaidReward);
+    let returnAmount: Uint256 = SafeUint256.sub_le(_returnAmount, pending);
     let res: Uint256 = SafeUint256.add(_allPaidReward, returnAmount);
     allPaidReward.write(res);
 
@@ -722,7 +722,7 @@ func extendDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
     tokenAmount: Uint256
 ) {
     alloc_locals;
-    // Ownable.assert_only_owner()
+    Ownable.assert_only_owner();
     ReentrancyGuard._start();
     let _finishTimestamp: felt = finishTimestamp.read();
 
@@ -773,7 +773,7 @@ func recursive_drop_token{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_
 
         let user_new_amount: Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount);
         let new_ticket_amount: Uint256 = returnTicket(user_new_amount, _userInfo.lockType);
-        let difference: Uint256 = SafeUint256.sub_lt(new_ticket_amount, _userInfo.dlTicket);
+        let difference: Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket);
         let _totalTicketCount: Uint256 = totalTicketCount.read();
         let new_total_ticket_count: Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount);
         ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount);
@@ -797,7 +797,7 @@ func recursive_drop_token{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_
     } else {
         let user_new_amount: Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount);
         let new_ticket_amount: Uint256 = returnTicket(user_new_amount, _userInfo.lockType);
-        let difference: Uint256 = SafeUint256.sub_lt(new_ticket_amount, _userInfo.dlTicket);
+        let difference: Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket);
         let _totalTicketCount: Uint256 = totalTicketCount.read();
         let new_total_ticket_count: Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount);
         ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount);
@@ -842,7 +842,7 @@ func processInternalStakeData{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
     alloc_locals;
     let (caller) = get_caller_address();
     let _allRewardDebt: Uint256 = allRewardDebt.read();
-    let new_rewardDebt: Uint256 = SafeUint256.sub_lt(_allRewardDebt, rewardDebt);
+    let new_rewardDebt: Uint256 = SafeUint256.sub_le(_allRewardDebt, rewardDebt);
 
     let wei: felt = 10 ** 18;
     let wei_as_uint256: Uint256 = Uint256(wei, 0);
@@ -856,7 +856,7 @@ func processInternalStakeData{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
     allRewardDebt.write(__allRewardDebt);
 
     let tvl: Uint256 = allStakedAmount.read();
-    let new_tvl: Uint256 = SafeUint256.sub_lt(tvl, amountToWithdraw);
+    let new_tvl: Uint256 = SafeUint256.sub_le(tvl, amountToWithdraw);
     allStakedAmount.write(new_tvl);
 
     let time: felt = get_block_timestamp();
@@ -869,9 +869,9 @@ func processInternalStakeData{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
         isRegistered=1,
     );
     let (time) = get_block_timestamp();
-    let diff: Uint256 = SafeUint256.sub_lt(user_old_ticket_count, user_ticket_count);
+    let diff: Uint256 = SafeUint256.sub_le(user_old_ticket_count, user_ticket_count);
     let oldTotalTicketCount: Uint256 = totalTicketCount.read();
-    let newTotalTicketCount: Uint256 = SafeUint256.sub_lt(oldTotalTicketCount, diff);
+    let newTotalTicketCount: Uint256 = SafeUint256.sub_le(oldTotalTicketCount, diff);
     ticketCountOfUser_byTime.write(caller, time, user_ticket_count);
     totalTicketCount.write(newTotalTicketCount);
     totalLockedTicket_byBlocktime.write(time, newTotalTicketCount);
@@ -1055,7 +1055,7 @@ func transferPendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
 
         let __pending: Uint256 = SafeUint256.mul(_user.amount, _accTokensPerShare);
         let (local _pending: Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256);
-        let pending: Uint256 = SafeUint256.sub_lt(_pending, _user.rewardDebt);
+        let pending: Uint256 = SafeUint256.sub_le(_pending, _user.rewardDebt);
 
         let res_condition: felt = uint256_lt(Uint256(0, 0), pending);
         let _rewardToken: felt = rewardToken.read();
