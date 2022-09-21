@@ -162,15 +162,15 @@ func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
     _admin: felt,
 ) {
     alloc_locals;
-    let __poolTokenAmount: Uint256 = Uint256(_poolTokenAmount, 0);
-    let __limitForTicket: Uint256 = Uint256(_limitForTicket, 0);
+    let __poolTokenAmount: Uint256 = felt_to_uint256(_poolTokenAmount);
+    let __limitForTicket: Uint256 = felt_to_uint256(_limitForTicket);
     Ownable.initializer(_admin);
     let (time) = get_block_timestamp();
     let res: felt = is_le(_startTimestamp, _finishTimestamp);
     let res_x: felt = is_le(_finishTimestamp, time);
     let res_t: felt = _finishTimestamp - _startTimestamp;
-    let removeValue: Uint256 = Uint256(res_t, 0);
-    let (local _rewardPerTimestamp: Uint256, _) = SafeUint256.div_rem(
+    let removeValue: Uint256 = felt_to_uint256(res_t);
+    let (_rewardPerTimestamp: Uint256, _) = SafeUint256.div_rem(
         __poolTokenAmount, removeValue
     );
     with_attr error_message("start block must be less than finish block") {
@@ -330,6 +330,14 @@ func get_unstakerAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_c
 }
 
 @view
+func get_tvl{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
+    res: Uint256
+) {
+    let res: Uint256 = allStakedAmount.read();
+    return (res,);
+}
+
+@view
 func pendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     account_address: felt
 ) -> (reward: Uint256) {
@@ -351,15 +359,21 @@ func pendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_p
             let multiplier: Uint256 = felt_to_uint256(_multiplier);
             let reward: Uint256 = SafeUint256.mul(multiplier, _rewardPerTimestamp);
             let wei_reward: Uint256 = SafeUint256.mul(reward, wei_as_uint256);
-            let (local dived_data: Uint256, _) = SafeUint256.div_rem(wei_reward, _allStakedAmount);
+            //1,918,260,473,588,342,423,000,000,000,000,000,000
+            let (dived_data: Uint256, _) = SafeUint256.div_rem(wei_reward, _allStakedAmount);
+            //2,471,985,146,376,729.92654639175257731958
             let tempAccTokensPerShare: Uint256 = SafeUint256.add(tempAccTokensPerShare, dived_data);
+            //15,593,000,983,725,014,553
             let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
-            let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
+            //452,197,028,528,025,422,037,000,000,000,000,000,000
+            let (returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
+           //452,197,028,528,025,422,037
             let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
+            //-117,558,266,152,595,732,775
             return (result,);
         }
         let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
-        let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
+        let (returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
         let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
 
         return (result,);
@@ -409,7 +423,7 @@ func recursiveGetInvestors{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
 func getUserInfo{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     account_address: felt
 ) -> (res: UserInfo) {
-    let (user: UserInfo) = userInfo.read(account_address);
+    let user : UserInfo = userInfo.read(account_address);
     return (user,);
 }
 
@@ -508,7 +522,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     alloc_locals;
     ReentrancyGuard._start();
     assert_nn_le(_lockType, 3);
-    let staker: felt = detectAddresss(_staker);
+    let staker: felt = detectAddress(_staker);
     let current_participant_count: felt = stakerCount.read();
     updatePool();
     let user: UserInfo = userInfo.read(staker);
@@ -567,10 +581,10 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     let new_rewardDebt: Uint256 = SafeUint256.sub_le(_allRewardDebt, user.rewardDebt);
 
     let wei: felt = 10 ** 18;
-    let wei_as_uint256: Uint256 = Uint256(wei, 0);
+    let wei_as_uint256: Uint256 = felt_to_uint256(wei);
     let _accTokensPerShare: Uint256 = accTokensPerShare.read();
     let _userRewardDebt: Uint256 = SafeUint256.mul(user.amount, _accTokensPerShare);
-    let (local new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
+    let ( new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
         _userRewardDebt, wei_as_uint256
     );
     let __allRewardDebt : Uint256 = SafeUint256.add(new_rewardDebt, new_userRewardDebt);
@@ -622,10 +636,24 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
         let zero_as_uint256: Uint256 = Uint256(0, 0);
         let is_same: felt = uint256_eq(new_user_amount, zero_as_uint256);
         let user_new_ticket: Uint256 = returnTicket(new_user_amount, user.lockType);
-        _lock(amountToWithdraw);
+        
         if (is_same == 1) {
             stakerCount.write(current_participant_count - 1);
             let user_new_ticket: Uint256 = zero_as_uint256;
+            processInternalStakeData(
+                user.amount,
+                user.rewardDebt,
+                amountToWithdraw,
+                pending,
+                user_new_ticket,
+                new_user_amount,
+                user.lockType,
+                user.dlTicket,
+            );
+            _lock(amountToWithdraw);
+            ReentrancyGuard._end();
+
+            return ();
         } else {
             let user_new_ticket: Uint256 = returnTicket(new_user_amount, user.lockType);
             processInternalStakeData(
@@ -638,6 +666,7 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
                 user.lockType,
                 user.dlTicket,
             );
+            _lock(amountToWithdraw);
             ReentrancyGuard._end();
 
             return ();
@@ -654,24 +683,11 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
             user.lockType,
             user.dlTicket,
         );
+        _lock(amountToWithdraw);
         ReentrancyGuard._end();
 
         return ();
     }
-
-    processInternalStakeData(
-        user.amount,
-        user.rewardDebt,
-        amountToWithdraw,
-        pending,
-        user_new_ticket,
-        new_user_amount,
-        user.lockType,
-        user.dlTicket,
-    );
-
-    ReentrancyGuard._end();
-    return ();
 }
 
 @external
@@ -845,10 +861,10 @@ func processInternalStakeData{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
     let new_rewardDebt: Uint256 = SafeUint256.sub_le(_allRewardDebt, rewardDebt);
 
     let wei: felt = 10 ** 18;
-    let wei_as_uint256: Uint256 = Uint256(wei, 0);
+    let wei_as_uint256: Uint256 = felt_to_uint256(wei);
     let _accTokensPerShare: Uint256 = accTokensPerShare.read();
-    let _userRewardDebt: Uint256 = SafeUint256.mul(user_amount, _accTokensPerShare);
-    let (local new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
+    let _userRewardDebt: Uint256 = SafeUint256.mul(new_amount, _accTokensPerShare);
+    let ( new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
         _userRewardDebt, wei_as_uint256
     );
 
@@ -957,7 +973,7 @@ func returnTicket{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
     return (Uint256(0, 0),);
 }
 
-func detectAddresss{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+func detectAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     address: felt
 ) -> (res: felt) {
     let is_address_not_zero: felt = is_not_zero(address);
@@ -1024,7 +1040,7 @@ func updatePool{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let multiplier: Uint256 = felt_to_uint256(_multiplier);
     let reward: Uint256 = SafeUint256.mul(multiplier, _rewardPerTime);
     let data_x: Uint256 = SafeUint256.mul(reward, wei_as_uint256);
-    let (local rw_data: Uint256, _) = SafeUint256.div_rem(data_x, _allStakedAmount);
+    let (rw_data: Uint256, _) = SafeUint256.div_rem(data_x, _allStakedAmount);
     let _accTokensPerShare: Uint256 = accTokensPerShare.read();
     let new_accPerShare: Uint256 = SafeUint256.add(rw_data, _accTokensPerShare);
     accTokensPerShare.write(new_accPerShare);
@@ -1047,14 +1063,14 @@ func transferPendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
     _user: UserInfo
 ) -> (res: Uint256) {
     alloc_locals;
-    let is_amount_less_than_zero: felt = uint256_le(_user.amount, Uint256(0, 0));
-    if (is_amount_less_than_zero == 0) {
+    let is_amount_less_than_zero : felt = uint256_le(_user.amount, Uint256(0, 0));
+    if (is_amount_less_than_zero == 0){
         let wei: felt = 10 ** 18;
         let wei_as_uint256: Uint256 = felt_to_uint256(wei);
         let _accTokensPerShare: Uint256 = accTokensPerShare.read();
 
         let __pending: Uint256 = SafeUint256.mul(_user.amount, _accTokensPerShare);
-        let (local _pending: Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256);
+        let (_pending: Uint256, _) = SafeUint256.div_rem(__pending, wei_as_uint256);
         let pending: Uint256 = SafeUint256.sub_le(_pending, _user.rewardDebt);
 
         let res_condition: felt = uint256_lt(Uint256(0, 0), pending);
@@ -1062,7 +1078,7 @@ func transferPendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
         let (caller) = get_caller_address();
         let _allPaidReward: Uint256 = allPaidReward.read();
         let _updatedReward: Uint256 = SafeUint256.add(_allPaidReward, pending);
-        if (res_condition == 1) {
+        if (res_condition == 0) {
             IERC20.transfer(contract_address=_rewardToken, recipient=caller, amount=pending);
             allPaidReward.write(_updatedReward);
             return (pending,);
