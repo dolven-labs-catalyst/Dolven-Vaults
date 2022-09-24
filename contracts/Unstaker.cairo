@@ -34,9 +34,6 @@ from Interfaces.IDolvenVault import IDolvenVault
 
 // # storages
 
-@storage_var
-func one_day() -> (timestamp: felt) {
-}
 
 @storage_var
 func staking_contract_address() -> (address: felt) {
@@ -131,11 +128,6 @@ func get_lock_details{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_chec
     return (lock_details,);
 }
 
-@view
-func get_one_day{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (res: felt) {
-    let one_day_: felt = one_day.read();
-    return (one_day_,);
-}
 
 @view
 func nonce_count{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (res: felt) {
@@ -169,25 +161,27 @@ func get_lock_types{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
 @view
 func get_user_locks{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     user: felt
-) -> (locks_len: felt, locks: felt*) {
-    let (locks_len, locks) = recursive_user_locks(user, 0);
-    return (locks_len * Lock.SIZE, locks - locks_len * Lock.SIZE);
+) -> (locks_len: felt, locks: felt*, nonces_len : felt, nonces : felt*) {
+    let (locks_len, locks, nonces_len, nonces) = recursive_user_locks(user, 0);
+    return (locks_len * Lock.SIZE, locks - locks_len * Lock.SIZE, nonces_len, nonces - nonces_len);
 }
 
 func recursive_user_locks{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     user: felt, index: felt
-) -> (locks_len: felt, locks_memoryloc: Lock*) {
+) -> (locks_len: felt, locks_memoryloc: Lock*, nonces_len : felt, nonces:felt*) {
     alloc_locals;
     let nonce_id: felt = user_nonces.read(user, index);
     if (nonce_id == 0) {
         let (found_locks: Lock*) = alloc();
-        return (0, found_locks);
+        let (found_nonces: felt*) = alloc();
+        return (0, found_locks, 0, found_nonces);
     }
 
     let lock_details: Lock = locks.read(nonce_id);
-    let (locks_len, locks_memoryloc) = recursive_user_locks(user, index + 1);
+    let (locks_len, locks_memoryloc, nonces_len, nonces) = recursive_user_locks(user, index + 1);
     assert [locks_memoryloc] = lock_details;
-    return (locks_len + 1, locks_memoryloc + Lock.SIZE);
+    assert [nonces] = nonce_id;
+    return (locks_len + 1, locks_memoryloc + Lock.SIZE, nonces_len + 1, nonces + 1);
 }
 
 // # External functions
@@ -216,15 +210,6 @@ func setLockTypes{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
 ) {
     Ownable.assert_only_owner();
     lockTypes.write(id, duration);
-    return ();
-}
-
-@external
-func setDayDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    duration_as_second: felt
-) {
-    Ownable.assert_only_owner();
-    one_day.write(duration_as_second);
     return ();
 }
 
@@ -306,6 +291,9 @@ func cancelLock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     with_attr error_message("unlock::already unlocked") {
         assert is_lock_unlocked = FALSE;
     }
+    with_attr error_message("unlock::caller is not owner") {
+        assert caller = lock_details.user_account;
+    }
     let staking_token: felt = token_address.read();
     let stake_contract: felt = staking_contract_address.read();
     IERC20.approve(staking_token, stake_contract, lock_details.amount);
@@ -346,10 +334,14 @@ func unlock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     user_address: felt, _nonce: felt
 ) {
     alloc_locals;
+    let (msg_sender) = get_caller_address()
     let lock_details: Lock = locks.read(_nonce);
     let _token_address: felt = token_address.read();
     let (time) = get_block_timestamp();
-    let is_early: felt = is_le(time, lock_details.unlocked_timestamp);
+    let is_early: felt = is_le(time, lock_details.unlock_timestamp);
+    with_attr error_message("unlock::caller is not owner") {
+        assert msg_sender = lock_details.user_account;
+    }
     with_attr error_message("unlock::too early") {
         assert is_early = FALSE;
     }
