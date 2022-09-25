@@ -96,6 +96,10 @@ func limitForTicket() -> (limit: Uint256) {
 func unstakerAddress() -> (contract_address: felt) {
 }
 
+@storage_var
+func last_process_time() -> (time: felt) {
+}
+
 // #Structs
 
 struct UserInfo {
@@ -247,7 +251,13 @@ func get_rewardPerTm{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check
 func get_totalLockedTicket_byTime{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     block_time: felt
 ) -> (res: Uint256) {
-    let total_locked_ticket: Uint256 = totalLockedTicket_byBlocktime.read(block_time);
+    let last_update_time : felt = last_process_time.read();
+    let is_block_time_less_than_last : felt = is_le(block_time, last_update_time);
+    if(is_block_time_less_than_last == TRUE){
+        let total_locked_ticket: Uint256 = totalLockedTicket_byBlocktime.read(block_time);
+    }else{
+        let total_locked_ticket: Uint256 = totalLockedTicket_byBlocktime.read(last_update_time);
+    }
     return (total_locked_ticket,);
 }
 
@@ -604,6 +614,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 
     totalTicketCount.write(newTotalTicketCount);
     totalLockedTicket_byBlocktime.write(time, resTicketCount);
+    last_process_time.write(time);
     ticketCountOfUser_byTime.write(caller_, time, resTicketCount);
     userInfo.write(staker, new_user_data);
     TokensStaked.emit(
@@ -887,6 +898,7 @@ func processInternalStakeData{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, ra
     let (time) = get_block_timestamp();
     let diff: Uint256 = SafeUint256.sub_le(user_old_ticket_count, user_ticket_count);
     let oldTotalTicketCount: Uint256 = totalTicketCount.read();
+    last_process_time.write(time);
     let newTotalTicketCount: Uint256 = SafeUint256.sub_le(oldTotalTicketCount, diff);
     ticketCountOfUser_byTime.write(caller, time, user_ticket_count);
     totalTicketCount.write(newTotalTicketCount);
