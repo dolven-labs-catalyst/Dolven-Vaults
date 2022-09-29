@@ -694,7 +694,7 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
             user.lockType,
             user.dlTicket,
         );
-        _lock(amountToWithdraw);
+      
         ReentrancyGuard._end();
 
         return ();
@@ -1090,7 +1090,7 @@ func transferPendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
         let (caller) = get_caller_address();
         let _allPaidReward: Uint256 = allPaidReward.read();
         let _updatedReward: Uint256 = SafeUint256.add(_allPaidReward, pending);
-        if (res_condition == 0) {
+        if (res_condition == 1) {
             IERC20.transfer(contract_address=_rewardToken, recipient=caller, amount=pending);
             allPaidReward.write(_updatedReward);
             return (pending,);
