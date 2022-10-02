@@ -77,14 +77,6 @@ func totalLockedValue() -> (tvl: Uint256) {
 func user_nonces_len_(account_address: felt) -> (length: felt) {
 }
 
-@storage_var
-func lockTypes(id: felt) -> (duration: felt) {
-}
-// 0 -> 20 days lock after undelege 1x
-// 1 -> 40 days lock afer undelege 2x
-// 2 -> 80 days lock after undelege 6x
-// 3 -> 160 days lock after undelege 10x
-
 // #events
 
 @event
@@ -136,6 +128,12 @@ func nonce_count{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr
 }
 
 @view
+func get_tvl{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (res: Uint256) {
+    let tvl_to_be_unstaked: Uint256 = totalLockedValue.read();
+    return (tvl_to_be_unstaked,);
+}
+
+@view
 func get_staking_contract_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     ) -> (res: felt) {
     let staking_contract_address_: felt = staking_contract_address.read();
@@ -148,14 +146,6 @@ func get_token_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 ) {
     let token_address_: felt = token_address.read();
     return (token_address_,);
-}
-
-@view
-func get_lock_types{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    index: felt
-) -> (res: felt) {
-    let duration: felt = lockTypes.read(index);
-    return (duration,);
 }
 
 @view
@@ -204,14 +194,6 @@ func setStakingAddress{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
     return ();
 }
 
-@external
-func setLockTypes{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    id: felt, duration: felt
-) {
-    Ownable.assert_only_owner();
-    lockTypes.write(id, duration);
-    return ();
-}
 
 @external
 func lockTokens{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
@@ -226,7 +208,7 @@ func lockTokens{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let (this) = get_contract_address();
     let nonce: felt = nonceCount.read();
     let (time) = get_block_timestamp();
-    let lock_duration: felt = lockTypes.read(lockType_);
+    let lock_duration: felt = IDolvenVault.get_lock_types(msg_sender, lockType_);
     let is_amount_bigger_than_zero: felt = uint256_lt(zero_as_uint256, _amount);
     with_attr error_message("lockTokens::amount is less than or equals to zero") {
         assert is_amount_bigger_than_zero = 1;
@@ -285,14 +267,13 @@ func cancelLock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
 ) {
     alloc_locals;
     let lock_details: Lock = locks.read(nonce);
-    let (caller) = get_caller_address();
     let is_lock_unlocked: felt = lock_details.isUnlocked;
     let (time) = get_block_timestamp();
     with_attr error_message("unlock::already unlocked") {
         assert is_lock_unlocked = FALSE;
     }
     with_attr error_message("unlock::caller is not owner") {
-        assert caller = lock_details.user_account;
+        assert user_address = lock_details.user_account;
     }
     let staking_token: felt = token_address.read();
     let stake_contract: felt = staking_contract_address.read();
@@ -312,9 +293,9 @@ func cancelLock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
         isUnlocked=TRUE,
     );
     let old_tvl: Uint256 = totalLockedValue.read();
-    let new_tvl: Uint256 = SafeUint256.add(old_tvl, lock_details.amount);
+    let new_tvl: Uint256 = SafeUint256.sub_le(old_tvl, lock_details.amount);
     totalLockedValue.write(new_tvl);
-
+    locks.write(nonce, new_lock_details);
     return ();
 }
 
@@ -334,13 +315,12 @@ func unlock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     user_address: felt, _nonce: felt
 ) {
     alloc_locals;
-    let (msg_sender) = get_caller_address()
     let lock_details: Lock = locks.read(_nonce);
     let _token_address: felt = token_address.read();
     let (time) = get_block_timestamp();
     let is_early: felt = is_le(time, lock_details.unlock_timestamp);
     with_attr error_message("unlock::caller is not owner") {
-        assert msg_sender = lock_details.user_account;
+        assert user_address = lock_details.user_account;
     }
     with_attr error_message("unlock::too early") {
         assert is_early = FALSE;
