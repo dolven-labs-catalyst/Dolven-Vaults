@@ -8,4 +8,6 @@ namespace IDolvenVault {
     }
     func get_userLockType(account: felt) -> (res: felt) {
     }
+    func get_lock_types(index: felt) -> (res: felt){
+    }
 }
