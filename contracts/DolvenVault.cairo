@@ -241,9 +241,9 @@ func get_properties{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
 
 @view
 func get_rewardPerTm{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
-    res: felt
+    res: Uint256
 ) {
-    let rpt: felt = rewardPerTimestamp.read();
+    let rpt: Uint256 = rewardPerTimestamp.read();
     return (rpt,);
 }
 
@@ -390,7 +390,7 @@ func pendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_p
     }
 
     let _returnData: Uint256 = SafeUint256.mul(user.amount, tempAccTokensPerShare);
-    let (local returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
+    let (returnData: Uint256, _) = SafeUint256.div_rem(_returnData, wei_as_uint256);
     let result: Uint256 = SafeUint256.sub_le(returnData, user.rewardDebt);
     return (result,);
 }
@@ -455,24 +455,11 @@ func setLockDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check
     return ();
 }
 
-@external
-func dropToken{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    addresses_len: felt, addresses: felt*, amounts_len: felt, amounts: Uint256*
-) {
-    Ownable.assert_only_owner();
-    ReentrancyGuard._start();
-    assert addresses_len = amounts_len;
-    recursive_drop_token(0, addresses, amounts, addresses_len);
-    let current_staker_count: felt = stakerCount.read();
-    let new_staker_count: felt = current_staker_count + addresses_len;
-    stakerCount.write(new_staker_count);
-    ReentrancyGuard._end();
-    return ();
-}
 
 @external
 func unlockTokens{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(nonce_: felt) {
     ReentrancyGuard._start();
+    Pausable.assert_not_paused();
     let (caller) = get_caller_address();
     let (unstaker) = get_unstakerAddress();
     IDolvenUnstaker.unlockTokens(unstaker, caller, nonce_);
@@ -482,9 +469,9 @@ func unlockTokens{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
 
 @external
 func cancelLock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(nonce_: felt) {
+    Pausable.assert_not_paused();
     let (caller) = get_caller_address();
     let (unstaker) = get_unstakerAddress();
-
     IDolvenUnstaker.cancelTokens(unstaker, caller, nonce_);
     return ();
 }
@@ -531,6 +518,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
 ) {
     alloc_locals;
     ReentrancyGuard._start();
+    Pausable.assert_not_paused();
     assert_nn_le(_lockType, 3);
     let staker: felt = detectAddress(_staker);
     let current_participant_count: felt = stakerCount.read();
@@ -593,7 +581,7 @@ func delege{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     let wei: felt = 10 ** 18;
     let wei_as_uint256: Uint256 = felt_to_uint256(wei);
     let _accTokensPerShare: Uint256 = accTokensPerShare.read();
-    let _userRewardDebt: Uint256 = SafeUint256.mul(user.amount, _accTokensPerShare);
+    let _userRewardDebt: Uint256 = SafeUint256.mul(user_new_amount, _accTokensPerShare);
     let ( new_userRewardDebt: Uint256, _) = SafeUint256.div_rem(
         _userRewardDebt, wei_as_uint256
     );
@@ -630,6 +618,7 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
 ) {
     alloc_locals;
     ReentrancyGuard._start();
+    Pausable.assert_not_paused();
     let (caller) = get_caller_address();
     assert_not_zero(caller);
     let user: UserInfo = userInfo.read(caller);
@@ -641,22 +630,21 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let pending: Uint256 = transferPendingReward(user);
     let is_amount_less_than_zero: felt = uint256_le(amountToWithdraw, Uint256(0, 0));
     let user_new_ticket: Uint256 = user.dlTicket;
-    let current_participant_count: felt = stakerCount.read();
-    let new_user_amount: Uint256 = SafeUint256.sub_le(user.amount, amountToWithdraw);
     if (is_amount_less_than_zero == 0) {
+        let current_participant_count: felt = stakerCount.read();
+        let new_user_amount: Uint256 = SafeUint256.sub_le(user.amount, amountToWithdraw);
         let zero_as_uint256: Uint256 = Uint256(0, 0);
         let is_same: felt = uint256_eq(new_user_amount, zero_as_uint256);
         let user_new_ticket: Uint256 = returnTicket(new_user_amount, user.lockType);
         
         if (is_same == 1) {
             stakerCount.write(current_participant_count - 1);
-            let user_new_ticket: Uint256 = zero_as_uint256;
             processInternalStakeData(
                 user.amount,
                 user.rewardDebt,
                 amountToWithdraw,
                 pending,
-                user_new_ticket,
+                zero_as_uint256,
                 new_user_amount,
                 user.lockType,
                 user.dlTicket,
@@ -683,14 +671,14 @@ func unDelegate{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
             return ();
         }
     } else {
-        let user_new_ticket: Uint256 = returnTicket(new_user_amount, user.lockType);
+    //harvest
         processInternalStakeData(
             user.amount,
             user.rewardDebt,
             amountToWithdraw,
             pending,
             user_new_ticket,
-            new_user_amount,
+            user.amount,
             user.lockType,
             user.dlTicket,
         );
@@ -706,6 +694,7 @@ func withdrawFunds{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_p
     alloc_locals;
     Ownable.assert_only_owner();
     ReentrancyGuard._start();
+    Pausable.assert_not_paused();
     let (time) = get_block_timestamp();
     let _finishTimestamp: felt = finishTimestamp.read();
     let isWithdrawOpen: felt = is_le(_finishTimestamp, time);
@@ -751,6 +740,7 @@ func extendDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
     alloc_locals;
     Ownable.assert_only_owner();
     ReentrancyGuard._start();
+    Pausable.assert_not_paused();
     let _finishTimestamp: felt = finishTimestamp.read();
 
     let (current_time) = get_block_timestamp();
@@ -783,68 +773,6 @@ func extendDuration{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
 }
 
 // # Internal Functions
-
-func recursive_drop_token{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    index: felt, addresses: felt*, amounts: Uint256*, length: felt
-) {
-    alloc_locals;
-    if (index == length) {
-        return ();
-    }
-    let userAddress: felt = addresses[index];
-    let userGiftAmount: Uint256 = amounts[index];
-    let _userInfo: UserInfo = userInfo.read(userAddress);
-    let (time) = get_block_timestamp();
-    if (_userInfo.isRegistered == FALSE) {
-        let current_staker_count: felt = stakerCount.read();
-
-        let user_new_amount: Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount);
-        let new_ticket_amount: Uint256 = returnTicket(user_new_amount, _userInfo.lockType);
-        let difference: Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket);
-        let _totalTicketCount: Uint256 = totalTicketCount.read();
-        let new_total_ticket_count: Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount);
-        ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount);
-        totalTicketCount.write(new_total_ticket_count);
-
-        stakers.write(current_staker_count + 1, userAddress);
-
-        let new_user: UserInfo = UserInfo(
-            amount=user_new_amount,
-            rewardDebt=Uint256(0, 0),
-            lockType=3,
-            updateTime=time,
-            dlTicket=new_ticket_amount,
-            isRegistered=TRUE,
-        );
-        userInfo.write(userAddress, new_user);
-
-        recursive_drop_token(index + 1, addresses, amounts, length);
-
-        return ();
-    } else {
-        let user_new_amount: Uint256 = SafeUint256.add(_userInfo.amount, userGiftAmount);
-        let new_ticket_amount: Uint256 = returnTicket(user_new_amount, _userInfo.lockType);
-        let difference: Uint256 = SafeUint256.sub_le(new_ticket_amount, _userInfo.dlTicket);
-        let _totalTicketCount: Uint256 = totalTicketCount.read();
-        let new_total_ticket_count: Uint256 = SafeUint256.add(new_ticket_amount, _totalTicketCount);
-        ticketCountOfUser_byTime.write(userAddress, time, new_ticket_amount);
-        totalTicketCount.write(new_total_ticket_count);
-
-        let new_user: UserInfo = UserInfo(
-            amount=user_new_amount,
-            rewardDebt=_userInfo.rewardDebt,
-            lockType=_userInfo.lockType,
-            updateTime=time,
-            dlTicket=new_ticket_amount,
-            isRegistered=TRUE,
-        );
-        userInfo.write(userAddress, new_user);
-
-        recursive_drop_token(index + 1, addresses, amounts, length);
-
-        return ();
-    }
-}
 
 func _lock{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(_amount: Uint256) {
     let tokenAddress: felt = stakingToken.read();
@@ -1010,17 +938,17 @@ func get_multiplier{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_
     _from: felt, _to: felt
 ) -> (res: felt) {
     alloc_locals;
-    let (_finishTimestamp) = finishTimestamp.read();
+    let _finishTimestamp : felt = finishTimestamp.read();
     let is_le__to__finishTimestamp = is_le(_to, _finishTimestamp);
     let is_le__to__from = is_le(_to, _from);
     let is_le__finishTimestamp__from = is_le(_finishTimestamp, _from);
-    if (is_le__to__from == 1) {
+    if (is_le__to__from == TRUE) {
         return (0,);
     }
-    if (is_le__to__finishTimestamp == 1) {
+    if (is_le__to__finishTimestamp == TRUE) {
         return (_to - _from,);
     } else {
-        if (is_le__finishTimestamp__from == 1) {
+        if (is_le__finishTimestamp__from == TRUE) {
             return (0,);
         } else {
             return (_finishTimestamp - _from,);
@@ -1088,9 +1016,9 @@ func transferPendingReward{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range
         let res_condition: felt = uint256_lt(Uint256(0, 0), pending);
         let _rewardToken: felt = rewardToken.read();
         let (caller) = get_caller_address();
-        let _allPaidReward: Uint256 = allPaidReward.read();
-        let _updatedReward: Uint256 = SafeUint256.add(_allPaidReward, pending);
         if (res_condition == 1) {
+            let _allPaidReward: Uint256 = allPaidReward.read();
+            let _updatedReward: Uint256 = SafeUint256.add(_allPaidReward, pending);
             IERC20.transfer(contract_address=_rewardToken, recipient=caller, amount=pending);
             allPaidReward.write(_updatedReward);
             return (pending,);
